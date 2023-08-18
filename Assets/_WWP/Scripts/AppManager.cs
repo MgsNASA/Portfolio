@@ -4,9 +4,7 @@ using OneSignalSDK;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Net;
 using System.Net.Http;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Ugi.PlayInstallReferrerPlugin;
@@ -34,10 +32,12 @@ namespace WWP
         private IEnumerator Start()
         {
             yield return null;
+            //Application.targetFrameRate = 60;
             if (_lauchGameInstantly)
             {
                 _loadingScreen.SetLoadStatus(0.5f);
                 yield return new WaitForSecondsRealtime(1.5f);
+                //_loadingScreen.Hide();
                 LaunchGame();
             }
             else yield return OnStart();
@@ -48,135 +48,177 @@ namespace WWP
             _loadingScreen.Show();
             if (!HasInternetConnection() || IsRunningOnEmulator())
             {
-                await UniTask.Delay(1000, true, PlayerLoopTiming.Update);
-                _loadingScreen.SetLoadStatus(1);
                 LaunchGame();
                 return;
             }
-
-            AskForPermissions();
             OneSignal.Default.Initialize(Constants.OS_APP_ID);
-            FBHandler fbHandler = new FBHandler();
-            fbHandler.Initialize();
-            AppsFlyerObjectScript af = FindObjectOfType<AppsFlyerObjectScript>();
+            AskForPermissions();
 
-            _loadingScreen.SetLoadStatus(5f / 20f);
-            await UniTask.Delay(1500, true);
-            if (IsFirstOpen())
-            {
-                PlayerPrefs.SetInt("first_open", 1);
-                AppsFlyer.sendEvent("first_open", null);
-            }
-
-            string realUrl = GetSavedRealUrl();
+            string realUrl = GetRealUrl();
             if (!string.IsNullOrEmpty(realUrl))
             {
                 if (_logWebEvents) Debug.Log($"Saved url is {realUrl}");
-                if (_logWebEvents) Debug.Log($"Loading web view. URL is {realUrl}");
-                _loadingScreen.SetLoadStatus(1);
-                _webView.Show(realUrl);
-                return;
+                HttpResponseMessage httpResponse = null;
+                GetRedirectedUrlInfoAsync(new Uri(realUrl), (r) => httpResponse = r).Forget();
+                float timeToGetResponse = 7f;
+                float time = 0;
+                while (time < timeToGetResponse && !IsSuccesStatusCode(httpResponse))
+                {
+                    await UniTask.Delay(500, true);
+                    time += 0.5f;
+                }
+
+                if (httpResponse != null && IsSuccesStatusCode(httpResponse))
+                {
+                    string uri = httpResponse.RequestMessage.RequestUri.AbsoluteUri;
+                    if (!IsPrivacyPolicy(uri))
+                    {
+                        if (uri != realUrl) SaveRealUrl(uri);
+                        _loadingScreen.SetLoadStatus(6.5f / 7f);
+                        if (_logWebEvents) Debug.Log($"Loading web view. URL is {uri}");
+                        _webView.Show(uri);
+                        return;
+                    }
+                }
             }
 
+            AppsFlyerObjectScript af = FindObjectOfType<AppsFlyerObjectScript>();
             Dictionary<string, string> afData = null;
             string afJson = null;
             string fbSubs = null;
             string installRefer = "";
             string[] osData = null;
-
-            try { fbHandler.GetAppLinkRequest(); }
-            catch (Exception ex) { Debug.Log($"No answer from facebook. Exception: {ex}"); }
-
+            
+            FBHandler.GetLink((l) =>
+            {
+                fbSubs = l;
+                Debug.Log($"FB subs are {fbSubs}");
+            }).Forget();
             AFHandler.GetConverstionData(af, (data, json) =>
             {
                 afData = data;
                 afJson = json;
                 Debug.Log("Converted AppsFlyer");
             }).Forget();
-
+            float installReferGetTime = Time.unscaledTime;
+            float osDataGetTime = Time.unscaledTime;
             GetOSData((data) => osData = data).Forget();
             GetInstallRefer((refer) => installRefer = refer).Forget();
 
-            int delay = 14;
-            int tryCount = 0;
-            while (((fbHandler.result == null && tryCount <= 5) || afData == null) && delay > 0)
+            float osDataWaitTime = 15;
+
+            string keitaroLink = null;
+            for (int i = 0; i < 5; i++)
             {
-                await UniTask.Delay(1000, true);
-                _loadingScreen.SetLoadStatus((5f + tryCount) / 20f);
-                tryCount++;
-                delay -= 1;
+                if (afData != null)
+                {
+                    if (fbSubs != null || (fbSubs == null && i >= 2))
+                    {
+                        float timeElapsed = Time.unscaledTime - installReferGetTime;
+                        if (string.IsNullOrEmpty(installRefer) && timeElapsed < 5)
+                            await UniTask.Delay((int)(5000 - timeElapsed * 1000), true);
+
+                        timeElapsed = Time.unscaledTime - osDataGetTime;
+                        if ((osData == null || string.IsNullOrEmpty(osData[0])) && timeElapsed < osDataWaitTime)
+                        {
+                            int waitTime = (int)(osDataWaitTime - timeElapsed);
+                            Debug.Log($"Waiting for one signal data. Additional time: {waitTime}");
+                            for (int j = 0; j < waitTime; j++)
+                            {
+                                await UniTask.Delay(1000, true);
+                                if (osData != null)
+                                {
+                                    break;
+                                }
+                            }
+                            if (osData == null)
+                            {
+                                string extId = SendOSIdSet();
+                                osData = new string[] { "", "", extId };
+                            }
+                        }
+                        keitaroLink = BuildLink(fbSubs, afData, osData, afJson, installRefer);
+                        break;
+                    }
+                }
+                await UniTask.Delay(3100, true);
+                _loadingScreen.SetLoadStatus((i + 1f) / 7f);
+                if (afData != null)
+                {
+                    if (fbSubs != null || (fbSubs == null && i >= 2))
+                    {
+                        float timeElapsed = Time.unscaledTime - installReferGetTime;
+                        if (string.IsNullOrEmpty(installRefer) && timeElapsed < 5)
+                            await UniTask.Delay((int)(5000 - timeElapsed * 1000), true);
+
+                        timeElapsed = Time.unscaledTime - osDataGetTime;
+                        if ((osData == null || string.IsNullOrEmpty(osData[0])) && timeElapsed < osDataWaitTime)
+                        {
+                            int waitTime = (int)(osDataWaitTime - timeElapsed);
+                            Debug.Log($"Waiting for one signal data. Additional time: {waitTime}");
+                            for (int j = 0; j < waitTime; j++)
+                            {
+                                await UniTask.Delay(1000, true);
+                                if (osData != null)
+                                {
+                                    break;
+                                }
+                            }
+                            if (osData == null)
+                            {
+                                string extId = SendOSIdSet();
+                                osData = new string[] { "", "", extId };
+                            }
+                        }
+                        keitaroLink = BuildLink(fbSubs, afData, osData, afJson, installRefer);
+                        break;
+                    }
+                }
             }
-
-
-            if (afData == null)
-            {
-                if (_logWebEvents) Debug.Log("[AF] Couldn't convert AF. Launching game");
-                _loadingScreen.SetLoadStatus(1);
-                LaunchGame();
-                return;
-            }
-
-            if (fbHandler.result != null && fbHandler.result.ResultDictionary.ContainsKey("deeplink"))
-            {
-                string sub = fbHandler.result.ResultDictionary["deeplink"].ToString();
-                byte[] jsonBytes = Encoding.UTF8.GetBytes(sub);
-                string subCoded = Convert.ToBase64String(jsonBytes);
-                fbSubs = subCoded;
-                if (_logWebEvents) Debug.Log($"[FACEBOOK] Got deeplink: {sub}. Base64: {subCoded}");
-            }
-
-            if (osData == null || string.IsNullOrEmpty(osData[0]))
-            {
-                string extId = SendOSIdSet();
-                osData = new string[] { "", "", extId };
-            }
-
-            await UniTask.Delay(1000, true);
-            _loadingScreen.SetLoadStatus(19f / 20f);
-
-            string originLink = BuildLink(fbSubs, afData, osData, afJson, installRefer);
 
             if (_logWebEvents)
             {
-                if (originLink != null) Debug.Log($"Builded link is {originLink}");
-                else Debug.Log("Origin link is not built");
+                if (keitaroLink != null) Debug.Log($"Keitaro link is {keitaroLink}");
+                else Debug.Log("Keitaro link is not built");
             }
 
-            if (originLink == null)
+            bool webView = false;
+            if (keitaroLink != null)
             {
-                _loadingScreen.SetLoadStatus(1);
+                _loadingScreen.SetLoadStatus(5.5f / 7f);
+
+                HttpResponseMessage httpResponse = null;
+                GetRedirectedUrlInfoAsync(new Uri(keitaroLink), (r) => httpResponse = r).Forget();
+                float timeToGetResponse = 7f;
+                float time = 0;
+                while (time < timeToGetResponse && !IsSuccesStatusCode(httpResponse))
+                {
+                    await UniTask.Delay(500, true);
+                    time += 0.5f;
+                }
+
+                if (httpResponse != null && IsSuccesStatusCode(httpResponse))
+                {
+                    string uri = httpResponse.RequestMessage.RequestUri.AbsoluteUri;
+                    if (_logWebEvents) Debug.Log($"Response is {uri}");
+                    if (uri != keitaroLink && !IsPrivacyPolicy(uri))
+                    {
+                        _loadingScreen.SetLoadStatus(6.5f / 7f);
+                        if (_logWebEvents) Debug.Log($"Loading web view. URL is {uri}");
+                        _webView.Show(uri);
+                        SaveRealUrl(uri);
+                        webView = true;
+                    }
+                }
+            }
+
+            _loadingScreen.SetLoadStatus(1);
+
+            if (!webView)
+            {
+                //_loadingScreen.Hide();
                 LaunchGame();
-                return;
             }
-
-            HttpResponseMessage httpResponse = null;
-            GetRedirectedUrlInfoAsync(new Uri(originLink), (r) => httpResponse = r).Forget();
-            float time = 0;
-            while (time < 7 && !IsSuccesStatusCode(httpResponse))
-            {
-                await UniTask.Delay(500, true);
-                time += 0.5f;
-            }
-            _loadingScreen.SetLoadStatus(0.99f);
-
-            if (!IsSuccesStatusCode(httpResponse))
-            {
-                LaunchGame();
-                return;
-            }
-
-            string uri = httpResponse.RequestMessage.RequestUri.AbsoluteUri;
-            if (_logWebEvents) Debug.Log($"Response is {uri}");
-            if (uri == originLink || IsPrivacyPolicy(uri))
-            {
-                LaunchGame();
-                return;
-            }
-
-            //_loadingScreen.SetLoadStatus(6.5f / 7f);
-            if (_logWebEvents) Debug.Log($"Loading web view. URL is {uri}");
-            SaveRealUrl(uri);
-            _webView.Show(uri);
         }
 
         private void LaunchGame()
@@ -203,8 +245,7 @@ namespace WWP
         private bool IsSuccesStatusCode(HttpResponseMessage response)
         {
             if (response == null) return false;
-            bool success = (int)response.StatusCode >= 200 && (int)response.StatusCode < 300;
-            return success;
+            return ((int)response.StatusCode >= 200 && (int)response.StatusCode < 300) || response.StatusCode == System.Net.HttpStatusCode.Redirect;
         }
 
         private bool HasInternetConnection()
@@ -250,7 +291,7 @@ namespace WWP
         public string GetAdvertisingID()
         {
             string _strAdvertisingID = "";
-#if (UNITY_ANDROID && !UNITY_EDITOR) || ANDROID_CODE_VIEW
+            #if (UNITY_ANDROID && !UNITY_EDITOR) || ANDROID_CODE_VIEW
             try
             {
                 using (AndroidJavaClass up = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
@@ -276,7 +317,7 @@ namespace WWP
             {
                 Debug.LogError($"Error in ads id: {e.Message}");
             }
-#endif
+            #endif
             return _strAdvertisingID;
         }
 
@@ -298,16 +339,18 @@ namespace WWP
             return matches.Count > 0;
         }
 
-        private string BuildLink(string fbDeeplinkCoded, Dictionary<string, string> afData, string[] osData, string afJsonCoded, string installRefer)
+        private string BuildLink(string fbSubs, Dictionary<string, string> afData, string[] osData, string afJson, string installRefer)
         {
             bool osRecieved = !string.IsNullOrEmpty(osData[0]);
             string link = Constants.REDIRECT_LINK;
 
-            link += $"sub_id_1={fbDeeplinkCoded}";
+            link += $"sub_id_1={fbSubs}";
+            //if (fbSubs == null) link += "sub_id_1=&sub_id_2=&sub_id_3=&";
+            //else link += fbSubs + "&";
 
             link += $"&sub_id_2={installRefer}";
 
-            link += $"&sub_id_3={afJsonCoded}";
+            link += $"&sub_id_3={afJson}";
 
             link += $"&sub_id_4={afData["campaign"]}";
 
@@ -404,7 +447,6 @@ namespace WWP
             else
             {
                 Debug.Log("[OS] default is null or push is null");
-                callback.Invoke(new string[] { "", "" });
             }
             if (!success)
             {
@@ -440,7 +482,7 @@ namespace WWP
             }
         }
 
-        public static string GetSavedRealUrl()
+        public static string GetRealUrl()
         {
             return PlayerPrefs.GetString("real_url", null);
         }

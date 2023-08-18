@@ -7,8 +7,6 @@ using UnityEngine;
 using System.Threading;
 using WWP.Game;
 using System;
-using System.IO;
-using WWP;
 
 namespace GooyesPlugin
 {
@@ -268,21 +266,12 @@ namespace GooyesPlugin
 
         public static float GetRandomInRange(this Vector2 range)
         {
-            float first = range.x;
-            float second = range.y;
-            if (first > second)
-            {
-                float buffer = first;
-                first = second;
-                second = buffer;
-            }
-            return UnityEngine.Random.Range(first, second);
+            return UnityEngine.Random.Range(range.x, range.y);
         }
         public static int GetRandomInRange(this Vector2Int range)
         {
             return UnityEngine.Random.Range(range.x, range.y);
         }
-
 
         public static CancellationTokenSource Toggle(this CancellationTokenSource token, bool active)
         {

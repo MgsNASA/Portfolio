@@ -40,6 +40,11 @@ public class AppsFlyerObjectScript : MonoBehaviour , IAppsFlyerConversionData
  
         AppsFlyer.startSDK();
         Debug.Log("[AF object] SDK start");
+        if (PlayerPrefs.GetInt("first_open", 0) == 0)
+        {
+            PlayerPrefs.SetInt("first_open", 1);
+            AppsFlyer.sendEvent("first_open", new Dictionary<string, string>());
+        }
     }
 
 
