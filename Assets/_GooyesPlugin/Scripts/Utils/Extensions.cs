@@ -283,7 +283,6 @@ namespace GooyesPlugin
             return UnityEngine.Random.Range(range.x, range.y);
         }
 
-
         public static CancellationTokenSource Toggle(this CancellationTokenSource token, bool active)
         {
             if (token != null)

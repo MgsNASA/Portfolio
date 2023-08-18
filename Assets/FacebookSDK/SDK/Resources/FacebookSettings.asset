@@ -14,11 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   selectedAppIndex: 0
   clientTokens:
-  - af4dafc89a8a63ed8ac2ad33edef42ce
+  - 3be48ed2b89c8d18326c7901f82c2c9f
   appIds:
-  - 892152625586031
+  - 1051638669548948
   appLabels:
-  - Wizard Wealth
+  - Strenuous Flight
   cookie: 1
   logging: 1
   status: 1
