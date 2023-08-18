@@ -250,7 +250,7 @@ namespace WWP
         public string GetAdvertisingID()
         {
             string _strAdvertisingID = "";
-#if (UNITY_ANDROID && !UNITY_EDITOR) || ANDROID_CODE_VIEW
+            #if (UNITY_ANDROID && !UNITY_EDITOR) || ANDROID_CODE_VIEW
             try
             {
                 using (AndroidJavaClass up = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
@@ -276,7 +276,7 @@ namespace WWP
             {
                 Debug.LogError($"Error in ads id: {e.Message}");
             }
-#endif
+            #endif
             return _strAdvertisingID;
         }
 

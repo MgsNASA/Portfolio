@@ -5,7 +5,6 @@ TagManager:
   serializedVersion: 2
   tags:
   - FxTemporaire
-  - Cell
   layers:
   - Default
   - TransparentFX
@@ -13,7 +12,7 @@ TagManager:
   - Player
   - Water
   - UI
-  - Enemy
+  - Container
   - BodyPart
   - Projectile
   - TriggerZone
