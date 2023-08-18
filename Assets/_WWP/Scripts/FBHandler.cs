@@ -1,61 +1,62 @@
-using Facebook.Unity;
+using Cysharp.Threading.Tasks;
 using System;
+using System.Text;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace WWP
 {
     public class FBHandler
     {
-        public IAppLinkResult result;
-
-        public void Initialize()
+        public static async UniTask GetLink(Action<string> callback)
         {
-            if (!FB.IsInitialized)
+            string link = null;
+            GetLink_Internal((l) => link = l).Forget();
+            for (int i = 0; i < 2; i++)
             {
-                FB.Init(InitCallback, OnHideUnity);
-            }
-        }
-
-        public void GetAppLinkRequest()
-        {
-            FB.GetAppLink(DeepLinkCallback);
-        }
-
-        private void DeepLinkCallback(IAppLinkResult _result)
-        {
-            if (_result != null && !string.IsNullOrEmpty(_result.Url))
-            {
-                var index = (new Uri(_result.Url)).Query.IndexOf("deeplink");
-                if (index != -1)
+                if (link != null)
                 {
-                    result = _result;
+                    callback?.Invoke(link);
+                    break;
+                }
+                await UniTask.Delay(3000, true);
+                if (link != null)
+                {
+                    callback?.Invoke(link);
+                    break;
                 }
             }
         }
 
-        private void InitCallback()
+        private static async UniTask GetLink_Internal(Action<string> callback)
         {
-            if (FB.IsInitialized)
+            string url = $"https://graph.facebook.com/{Constants.FB_APP_ID}?fields=app_links&access_token={Constants.FB_CLIENT_TOKEN}";
+            using (UnityWebRequest request = UnityWebRequest.Get(url))
             {
-                FB.ActivateApp();
-            }
-            else
-            {
-                Debug.Log("failed to init Facebook");
-            }
-        }
+                request.timeout = 3;
+                try
+                {
+                    var req = await request.SendWebRequest();
+                    if (req.result == UnityWebRequest.Result.Success)
+                    {
+                        string response = req.downloadHandler.text;
+                        byte[] bytes = Encoding.UTF8.GetBytes(response);
+                        string base64String = Convert.ToBase64String(bytes);
+                        callback?.Invoke(base64String);
+                    }
+                    else
+                    {
+                        Debug.Log("Failed to get deep link: " + req.error);
+                        callback?.Invoke("");
+                    }
+                }
+                catch (UnityWebRequestException)
+                {
 
-        private void OnHideUnity(bool isGameShown)
-        {
-            if (!isGameShown)
-            {
-                Time.timeScale = 0f;
+                }
             }
-            else
-            {
-                Time.timeScale = 1f;
-            }
+            //callback?.Invoke(ParseDeepLink("app://?sub_id_1=1111&sub_id_2=2222&sub_id_3=3333&sub_id_5=5533&sub_id_10=1033"));
         }
 
         private static string ParseDeepLink(string link)

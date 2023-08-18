@@ -12,5 +12,7 @@ namespace WWP
             instance = this;
             DontDestroyOnLoad(gameObject);
         }
+
+        
     }
 }

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Cysharp.Threading.Tasks;
+using System;
 using System.Collections;
 using System.Linq;
 using UnityEngine;
@@ -10,34 +11,39 @@ namespace WWP
     public class GameManager : MonoBehaviour
     {
         private EndGamePanel _endGamePanel;
-        private SettingsMenu _settingsMenu;
         [SerializeField] private Button _restart;
-        [SerializeField] private BallGame _ballGame;
         private static bool _setRotation = false;
+        [SerializeField]
+        private InfiniteRunner _infiniteRunner;
+        [SerializeField]
+        private ObstacleSpawner _obstacleSpawner;
+        [SerializeField]
+        private AviatorManager _aviatorManager;
+        [SerializeField]
+        private PlayerMovement [] _playerMovement;
+        [SerializeField]
+        private GameObject _uiStartWindow;
+        [SerializeField]
+        private Transform startPosition;
+        [SerializeField]
+        private Button _playGame;
 
         private float _timeStart;
         public bool Paused { get; private set; }
-        public BallGame BallGame { get { return _ballGame; } }
-        [SerializeField] private GameObject _menu;
 
         private void Start()
         {
-             Application.targetFrameRate = 60;
+            Application.targetFrameRate = 60;
             _restart.onClick.AddListener(() => RestartGame());
+            _playGame.onClick.AddListener(() => PlayGame());
             _endGamePanel = FindObjectOfType<EndGamePanel>(true);
-            _settingsMenu = FindObjectOfType<SettingsMenu> (true);
             _endGamePanel.Init(this);
-            _settingsMenu.Init(this);
-        }
+            _playerMovement = FindObjectsOfType<PlayerMovement> ();
 
-        public void OpenMenu()
-        {
-            _menu.SetActive(true);
         }
 
         public void StartGame(Action turnOffLoadingScreen)
         {
-            //_round++;
             TogglePause(false);
             _endGamePanel.Hide();
             if (!_setRotation)
@@ -48,37 +54,60 @@ namespace WWP
                 Screen.autorotateToLandscapeLeft = false;
                 Screen.autorotateToLandscapeRight = false;
                 _setRotation = true;
-
             }
-            OpenMenu();
+            AviatorManager.Instance.aviators [0].isPurchased = true;
             _timeStart = Time.time;
-            _ballGame.Init(this);
             turnOffLoadingScreen?.Invoke();
+           
+        }
+        public void PlayGame ( ) {
+            _infiniteRunner.StartCoroutine ("MoveLoop");
+            _obstacleSpawner.StartCoroutine ("SpawnObjects");
+            _uiStartWindow.SetActive (false);
+
+            bool anyActivated = false; // Переменная для отслеживания активации хотя бы одного самолета
+
+            for ( int i = 0; i < _aviatorManager.aviators.Length; i++ ) {
+                if ( _aviatorManager.aviators [i].isPurchased ) {
+                    _aviatorManager.aviators [i].isActive = true;
+                    anyActivated = true;
+                    break;
+                }
+            }
+
+            // Если ни один самолет не активирован, активируем первый купленный
+            if ( !anyActivated && _aviatorManager.aviators.Length > 0 ) {
+                _aviatorManager.aviators [0].isActive = true;
+            }
+
+            // Включаем управление для всех игроков
+            for ( int i = 0; i < _playerMovement.Length; i++ ) {
+                _playerMovement [i].ChangeControlerMovement (true);
+            }
         }
 
-        /*private IEnumerator RunTimer()
-        {
-            int round = _round;
-            yield return new WaitForSeconds(_roundTime);
-            EndGame(0, new EndGameInfo
-            {
-                win = false,
-                round = round,
-            });
-        }*/
 
-        public void RestartGame()
-        {
-            StopAllCoroutines();
-            var restartables = FindObjectsOfType<MonoBehaviour>(true).OfType<IRestartable>();
-            foreach (var restartable in restartables)
-            {
-                restartable.OnRestart();
+
+        public void RestartGame ( ) {
+            // Сначала установите позицию игрока
+            var playerMovements = FindObjectsOfType<PlayerMovement> ();
+            foreach ( var playerMovement in playerMovements ) {
+                playerMovement.transform.position =startPosition.position;
             }
-            Ball [] cells = FindObjectsOfType<Ball> ();
-            foreach ( Ball cell in cells ) {
-                Destroy (cell.gameObject);
+
+            // Затем уничтожьте препятствия
+            var obstacles = FindObjectsOfType<Obstacle> ();
+            foreach ( var obstacle in obstacles ) {
+                Destroy (obstacle.gameObject);
             }
+
+            // После этого выполните остальные действия перезапуска
+            var restartables = FindObjectsOfType<MonoBehaviour> (true).OfType<IRestartable> ();
+            foreach ( var restartable in restartables ) {
+                restartable.OnRestart ();
+            }
+            _infiniteRunner.gameObject.transform.position = new Vector3 (_infiniteRunner.gameObject.transform.position.x, 16.04f, _infiniteRunner.gameObject.transform.position.z);
+
             StartGame (null);
         }
 
@@ -104,7 +133,6 @@ namespace WWP
         {
             public bool win;
             public int value;
-            public int level;
         }
     }
 }
