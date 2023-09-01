@@ -14,11 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   selectedAppIndex: 0
   clientTokens:
-  - af4dafc89a8a63ed8ac2ad33edef42ce
+  - 1e96e07ef46d42388b58286864674c62
   appIds:
-  - 892152625586031
+  - 1428582857873239
   appLabels:
-  - Wizard Wealth
+  - Invest Insider
   cookie: 1
   logging: 1
   status: 1

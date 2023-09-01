@@ -1,56 +1,38 @@
-﻿using GooyesPlugin;
-using TMPro;
+﻿using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using WWP.Game;
 
 namespace WWP
 {
     public class LoadingScreen : MonoBehaviour
     {
         [SerializeField] private TextMeshProUGUI _percent;
-        //[SerializeField] private ProgressBar _progressBar;
         [SerializeField] private Image _circle;
-        [SerializeField] private float _fillSpeed = 0.005f;
-        public bool IsShowed { get => gameObject.activeSelf; }
-        private float _targetValue;
-        private float _currentValue;
-
         public void Hide()
         {
             gameObject.SetActive(false);
         }
 
-        public void Show(float value = 0)
+        public void Show()
         {
             gameObject.SetActive(true);
-            _percent.text = ToPercent(value);
-            _circle.fillAmount = value;
-            //_progressBar.Value = value;
-            _targetValue = value;
-            _currentValue = value;
+            _percent.text = ToPercent(0);
+            _circle.fillAmount = 0;
+            //_progressBar.Value = 0;
         }
 
-        public void FixedUpdate()
+        public void SetLoadStatus(float percent)
         {
-            if (IsShowed)
-            {
-                _currentValue = Mathf.MoveTowards(_currentValue, _targetValue, _fillSpeed);
-                _percent.text = ToPercent(_currentValue);
-                //_progressBar.Value = _currentValue;
-                _circle.fillAmount = _currentValue;
-            }
-        }
-
-        public void SetLoadStatus(float valueFromZeroToOne)
-        {
-            valueFromZeroToOne = Mathf.Clamp01(valueFromZeroToOne);
-            _targetValue = valueFromZeroToOne;
+            percent = Mathf.Clamp01(percent);
+            _percent.text = ToPercent(percent);
+            _circle.fillAmount = percent;
+            //_progressBar.Value = percent;
         }
 
         private string ToPercent(float value)
         {
-            int percent = (int)(value * 100);
-            return $"{percent}%";
+            return $"{(int)(value * 100)}%";
         }
     }
 }

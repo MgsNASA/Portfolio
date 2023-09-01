@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Cysharp.Threading.Tasks;
+using System;
 using System.Collections;
 using System.Linq;
 using UnityEngine;
@@ -10,36 +11,35 @@ namespace WWP
     public class GameManager : MonoBehaviour
     {
         private EndGamePanel _endGamePanel;
-        private SettingsMenu _settingsMenu;
-        [SerializeField] private Button _restart;
-        [SerializeField] private BallGame _ballGame;
+       // [SerializeField] private Button _restart;
+        [SerializeField] Clicker clicker;
+        [SerializeField] Upgrade [] upgrade;
         private static bool _setRotation = false;
 
+        //[SerializeField] private Field _field;
+        //[SerializeField] private int _roundTime = 90;
+        //[SerializeField] private UI_Timer _timerUI;
+
         private float _timeStart;
+        private Coroutine _timer;
+        private int _round;
         public bool Paused { get; private set; }
-        public BallGame BallGame { get { return _ballGame; } }
-        [SerializeField] private GameObject _menu;
 
         private void Start()
         {
-             Application.targetFrameRate = 60;
-            _restart.onClick.AddListener(() => RestartGame());
-            _endGamePanel = FindObjectOfType<EndGamePanel>(true);
-            _settingsMenu = FindObjectOfType<SettingsMenu> (true);
-            _endGamePanel.Init(this);
-            _settingsMenu.Init(this);
-        }
-
-        public void OpenMenu()
-        {
-            _menu.SetActive(true);
+            Application.targetFrameRate = 60;
+          //  _restart.onClick.AddListener(() => RestartGame());
+            //_endGamePanel = FindObjectOfType<EndGamePanel>(true);
+            //_endGamePanel.Init(this);
         }
 
         public void StartGame(Action turnOffLoadingScreen)
         {
-            //_round++;
+            Debug.Log("Start game");
+            _round++;
             TogglePause(false);
-            _endGamePanel.Hide();
+            //_endGamePanel.Hide();
+            //_scoreBar.Init(GetLevel()); // set score here
             if (!_setRotation)
             {
                 Screen.orientation = ScreenOrientation.Portrait;
@@ -48,15 +48,21 @@ namespace WWP
                 Screen.autorotateToLandscapeLeft = false;
                 Screen.autorotateToLandscapeRight = false;
                 _setRotation = true;
-
             }
-            OpenMenu();
             _timeStart = Time.time;
-            _ballGame.Init(this);
+            clicker.StartClass ();
+            for (int i = 0;i<upgrade.Length;i++ ) {
+                upgrade[i].StartClass ();
+            }
+         
+            // _field.Init(this);
+            //  _timer = StartCoroutine(RunTimer());
+            // _timerUI.RunTimer(_roundTime);
+
             turnOffLoadingScreen?.Invoke();
         }
 
-        /*private IEnumerator RunTimer()
+       /* private IEnumerator RunTimer()
         {
             int round = _round;
             yield return new WaitForSeconds(_roundTime);
@@ -65,25 +71,24 @@ namespace WWP
                 win = false,
                 round = round,
             });
-        }*/
+        }
+       */
 
         public void RestartGame()
         {
-            StopAllCoroutines();
             var restartables = FindObjectsOfType<MonoBehaviour>(true).OfType<IRestartable>();
             foreach (var restartable in restartables)
             {
                 restartable.OnRestart();
             }
-            Ball [] cells = FindObjectsOfType<Ball> ();
-            foreach ( Ball cell in cells ) {
-                Destroy (cell.gameObject);
-            }
-            StartGame (null);
+            StartGame(null);
         }
 
         public void EndGame(float delay, EndGameInfo info)
         {
+            if (info.round.HasValue && info.round.Value != _round) return;
+            StopCoroutine(_timer);
+            //_timerUI.StopTimer();
             StartCoroutine(EndGameDelay(delay, info));
         }
 
@@ -103,8 +108,7 @@ namespace WWP
         public struct EndGameInfo
         {
             public bool win;
-            public int value;
-            public int level;
+            public int? round;
         }
     }
 }
