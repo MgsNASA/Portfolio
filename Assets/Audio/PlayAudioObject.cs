@@ -52,7 +52,7 @@ namespace GooyesPlugin
             bool hasAudio = !string.IsNullOrEmpty(soundName);
             if (onScreenOnly)
             {
-                hasAudio = Camera.main.IsOnScreen(transform.position);
+             //   hasAudio = Camera.main.IsOnScreen(transform.position);
             }
             if (hasAudio)
             {

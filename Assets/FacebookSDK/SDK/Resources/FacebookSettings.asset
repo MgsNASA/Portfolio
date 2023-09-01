@@ -14,11 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   selectedAppIndex: 0
   clientTokens:
-  - af4dafc89a8a63ed8ac2ad33edef42ce
+  - 8790527cfb2a19d996cf95b09ad4a033
   appIds:
-  - 892152625586031
+  - 1714992612344936
   appLabels:
-  - Wizard Wealth
+  - Plane Journey
   cookie: 1
   logging: 1
   status: 1
